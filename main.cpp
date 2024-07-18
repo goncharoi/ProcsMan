@@ -53,6 +53,12 @@ bool beginsWith(const std::string &fullString, const std::string &begining) {
     }
 }
 
+BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
+    std::vector<HWND> *windows = reinterpret_cast<std::vector<HWND> *>(lParam);
+    windows->push_back(hwnd);
+    return TRUE;
+}
+
 int main() {
 //    std::ofstream logfile("log.txt"); // создаем объект для записи в файл log.txt
 //    std::streambuf* oldCoutStreamBuf = std::cout.rdbuf();
@@ -74,16 +80,24 @@ int main() {
     bool dontPrint = FALSE;
     HWND desktop = GetDesktopWindow();
 
-    HWND hwnd = FindWindow(NULL, NULL);
-    while (hwnd) {
+    std::vector<HWND> windows;
+    EnumWindows(EnumWindowsProc, reinterpret_cast<LPARAM>(&windows));
+
+    for (const auto &hwnd: windows) {
+        char title[256];
+        GetWindowTextA(hwnd, title, sizeof(title));
+
         DWORD pid;
         GetWindowThreadProcessId(hwnd, &pid);
-        HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
+        HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
 
         TCHAR szExe[MAX_PATH + 1];
         DWORD lpdwSize = MAX_PATH;
 
-        [[maybe_unused]] BOOL bFile = QueryFullProcessImageName(hProcess, 0, szExe, &lpdwSize);
+        if (hProcess == nullptr)
+            memset(szExe, 0, lpdwSize);
+        else
+            [[maybe_unused]] BOOL bFile = QueryFullProcessImageName(hProcess, 0, szExe, &lpdwSize);
 
         if (endsWith(szExe, "explorer.exe"))
             explorerCount++;
@@ -97,18 +111,60 @@ int main() {
             CFileVersionInfo data;
             data.Create(szExe);
 
-            std::cout <<
-                      hwnd << " ## " <<
-                      szExe << " ## " <<
-                      data.GetFileVersion().c_str() << " ## " <<
-                      data.GetProductVersion().c_str() << " ## " <<
-                      data.GetFileDescription().c_str() <<
-                      std::endl;
+            if (hProcess == nullptr)
+                std::cout <<
+                          hwnd << " ## C:\\" <<
+                          title << ".exe ##  ##  ## " <<
+                          title <<
+                          std::endl;
+            else
+                std::cout <<
+                          hwnd << " ## " <<
+                          szExe << " ## " <<
+                          data.GetFileVersion().c_str() << " ## " <<
+                          data.GetProductVersion().c_str() << " ## " <<
+                          data.GetFileDescription().c_str() <<
+                          std::endl;
 
             CloseHandle(hProcess);
         }
-        hwnd = FindWindowEx(NULL, hwnd, NULL, NULL);
     }
+
+//    HWND hwnd = FindWindow(NULL, NULL);
+//    while (hwnd) {
+//        DWORD pid;
+//        GetWindowThreadProcessId(hwnd, &pid);
+//        HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
+//
+//        TCHAR szExe[MAX_PATH + 1];
+//        DWORD lpdwSize = MAX_PATH;
+//
+//        [[maybe_unused]] BOOL bFile = QueryFullProcessImageName(hProcess, 0, szExe, &lpdwSize);
+//
+//        if (endsWith(szExe, "explorer.exe"))
+//            explorerCount++;
+//
+//        dontPrint = beginsWith(szExe, "C:\\Windows\\");
+//
+//        if (IsTaskbarWindow(hwnd, desktop) && !dontPrint || explorerCount == 1) {
+//            if (explorerCount == 1)
+//                explorerCount++;
+//
+//            CFileVersionInfo data;
+//            data.Create(szExe);
+//
+//            std::cout <<
+//                      hwnd << " ## " <<
+//                      szExe << " ## " <<
+//                      data.GetFileVersion().c_str() << " ## " <<
+//                      data.GetProductVersion().c_str() << " ## " <<
+//                      data.GetFileDescription().c_str() <<
+//                      std::endl;
+//
+//            CloseHandle(hProcess);
+//        }
+//        hwnd = FindWindowEx(NULL, hwnd, NULL, NULL);
+//    }
 
 //    if (log == "1") {
 //        std::cout.rdbuf(oldCoutStreamBuf);
